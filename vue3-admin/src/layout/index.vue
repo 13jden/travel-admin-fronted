@@ -42,10 +42,14 @@
             <el-menu-item index="/routes/templates">路线模板</el-menu-item>
           </el-sub-menu>
 
-          <el-menu-item index="/ai-knowledge">
-            <el-icon><Cpu /></el-icon>
-            <span>AI知识库管理</span>
-          </el-menu-item>
+          <el-sub-menu index="/ai-knowledge">
+            <template #title>
+              <el-icon><Cpu /></el-icon>
+              <span>AI知识库管理</span>
+            </template>
+            <el-menu-item index="/ai-knowledge">知识库管理</el-menu-item>
+            <el-menu-item index="/ai-knowledge/qa">AI问答管理</el-menu-item>
+          </el-sub-menu>
                     
           <el-menu-item index="/user">
             <el-icon><User /></el-icon>
