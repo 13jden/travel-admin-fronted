@@ -8,6 +8,8 @@ on:
 jobs:
   build-and-deploy:
     runs-on: self-hosted
+    # 添加一个超时设置，避免任务无限期排队
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
