@@ -170,7 +170,7 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: url('../../images/cover.jpg') no-repeat center center;
+  background: url('../../images/admin-cover.jpg') no-repeat center center;
   background-size: cover;
 
   .login-form {

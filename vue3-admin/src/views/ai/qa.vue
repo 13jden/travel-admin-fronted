@@ -1,261 +1,366 @@
 <template>
-  <div class="app-container">
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>AI问答管理</span>
-          <el-button type="primary" @click="handleAdd">新增问答</el-button>
+  <div class="chat-page">
+    <header class="chat-header">
+      <h1>AI 智能助手</h1>
+    </header>
+
+    <div class="chat-messages" ref="chatContainer">
+      <div class="message-column">
+        <div v-if="messages.length === 0" class="empty-chat">
+          <el-empty description="开始与AI助手对话吧" />
         </div>
-      </template>
-      
-      <el-form :inline="true" :model="queryParams" class="demo-form-inline">
-        <el-form-item label="问题内容">
-          <el-input v-model="queryParams.question" placeholder="请输入问题关键词" clearable />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="resetQuery">重置</el-button>
-        </el-form-item>
-      </el-form>
-      
-      <el-table :data="qaList" style="width: 100%" v-loading="loading" border stripe>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="question" label="问题" show-overflow-tooltip />
-        <el-table-column prop="answer" label="回答" show-overflow-tooltip />
-        <el-table-column prop="category" label="分类" width="120" />
-        <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="scope">
-            <el-button type="primary" link @click="handleEdit(scope.row)">编辑</el-button>
-            <el-button type="danger" link @click="handleDelete(scope.row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 30, 50]"
-        layout="total, sizes, prev, pager, next, jumper"
-        :total="total"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-        class="pagination"
-      />
-    </el-card>
+        
+        <template v-else>
+          <div 
+            v-for="(msg, index) in messages" 
+            :key="index" 
+            :class="['message-wrapper', msg.role === 'user' ? 'user-message' : 'ai-message']"
+          >
+              <el-avatar v-if="msg.role === 'assistant'" :size="32" :icon="Service" class="ai-avatar" />
+              <div class="message-content">
+                <div class="message-text" v-html="formatMessage(msg.content)"></div>
+                <div v-if="msg.role === 'assistant' && !loading" class="message-actions">
+                  <el-button :icon="CopyDocument" link size="small" />
+                  <el-button :icon="Refresh" link size="small" />
+                </div>
+              </div>
+          </div>
+        </template>
+        
+        <div v-if="loading" class="message-wrapper ai-message">
+          <el-avatar :size="32" :icon="Service" class="ai-avatar" />
+          <div class="message-content">
+             <div class="loading-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     
-    <!-- 新增/编辑对话框 -->
-    <el-dialog
-      :title="dialogTitle"
-      v-model="dialogVisible"
-      width="50%"
-      :before-close="handleDialogClose"
-    >
-      <el-form :model="qaForm" :rules="rules" ref="qaFormRef" label-width="80px">
-        <el-form-item label="问题" prop="question">
-          <el-input v-model="qaForm.question" type="textarea" :rows="2" placeholder="请输入问题内容" />
-        </el-form-item>
-        <el-form-item label="回答" prop="answer">
-          <el-input v-model="qaForm.answer" type="textarea" :rows="5" placeholder="请输入回答内容" />
-        </el-form-item>
-        <el-form-item label="分类" prop="category">
-          <el-select v-model="qaForm.category" placeholder="请选择分类">
-            <el-option label="景点介绍" value="景点介绍" />
-            <el-option label="旅游指南" value="旅游指南" />
-            <el-option label="当地美食" value="当地美食" />
-            <el-option label="交通信息" value="交通信息" />
-            <el-option label="民俗文化" value="民俗文化" />
-            <el-option label="其他" value="其他" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitForm">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
+    <footer class="chat-footer">
+      <div class="chat-input-container">
+        <el-input
+          v-model="userInput"
+          type="textarea"
+          :autosize="{ minRows: 1, maxRows: 5 }"
+          placeholder="向我提问..."
+          resize="none"
+          @keyup.enter.exact.prevent="sendMessage"
+          class="chat-input"
+        />
+        <el-button 
+          type="primary" 
+          :icon="Promotion" 
+          circle 
+          class="send-button" 
+          :disabled="!userInput.trim() || loading"
+          @click="sendMessage"
+        />
+      </div>
+       <div class="footer-note">智能助手可能提供不准确的信息。</div>
+    </footer>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, onMounted, nextTick } from 'vue'
+import { Service, Promotion, CopyDocument, Refresh } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { marked } from 'marked'
 
-// 分页参数
-const currentPage = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
-
-// 查询参数
-const queryParams = reactive({
-  question: '',
-  page: 1,
-  pageSize: 10
-})
-
-// 数据列表
-const qaList = ref([])
+// 聊天消息列表
+const messages = ref([])
+const userInput = ref('')
 const loading = ref(false)
+const chatContainer = ref(null)
 
-// 表单参数
-const dialogVisible = ref(false)
-const dialogTitle = ref('新增问答')
-const qaForm = reactive({
-  id: null,
-  question: '',
-  answer: '',
-  category: '',
-  createTime: ''
+// 配置 marked
+marked.setOptions({
+  gfm: true, // 启用 GitHub Flavored Markdown
+  breaks: true, // 将换行符渲染为 <br>
 })
-const qaFormRef = ref(null)
 
-// 表单校验规则
-const rules = {
-  question: [{ required: true, message: '请输入问题内容', trigger: 'blur' }],
-  answer: [{ required: true, message: '请输入回答内容', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择分类', trigger: 'change' }]
+// 示例问答对
+const exampleResponses = {
+  '村里有什么景点': `龙潭村有多处值得一游的景点：
+  1.  **龙潭瀑布**：村里最著名的自然景观，水流湍急，景色壮观。
+  2.  **古树林**：拥有超过500年历史的古树，其中"神树"是村子的象征。
+  3.  **传统民居群**：保存完好的明清建筑，展示了当地特色建筑风格。
+  4.  **山顶观景台**：可以俯瞰整个村庄和周围的群山。
+  
+  \`\`\`bash
+  # 推荐游览路线
+  村口 -> 龙潭瀑布 -> 古树林 -> 山顶观景台
+  \`\`\``,
+  
+  '有什么当地美食': `龙潭村的特色美食非常丰富：
+*   **竹筒饭**：将米饭放入新鲜的竹筒中蒸煮，香气四溢。
+*   **烤全羊**：采用传统工艺烤制，肉质鲜嫩多汁。
+*   **野菜煎饼**：采用当地野生蔬菜制作，营养丰富。
+*   **农家豆腐**：手工制作，口感细腻。
+*   **山泉鱼**：使用清澈的山泉水养殖的鱼，肉质鲜美。`
 }
 
-// 初始化
 onMounted(() => {
-  getList()
+  addMessage('assistant', '您好！我是龙潭村的智能导游助手，有什么可以帮您的吗？')
 })
 
-// 获取列表数据
-const getList = () => {
+// 发送消息
+const sendMessage = () => {
+  if (!userInput.value.trim() || loading.value) return
+  
+  const userQuestion = userInput.value.trim()
+  addMessage('user', userQuestion)
+  userInput.value = ''
+  
   loading.value = true
-  // 模拟API调用
+  
   setTimeout(() => {
-    // 这里应该是实际的API调用
-    const mockData = [
-      {
-        id: 1,
-        question: '当地有哪些著名景点?',
-        answer: '我们这里有美丽的山水风光、历史文化遗址、民俗村落等多个著名景点。主要包括青山绿水风景区、古镇老街、传统民居群等，每个景点都有其独特的魅力。',
-        category: '景点介绍',
-        createTime: '2023-06-15 09:30:45'
-      },
-      {
-        id: 2,
-        question: '当地特色美食有哪些?',
-        answer: '我们这里的特色美食非常丰富，有农家土菜、传统小吃、特色点心等。比如山野菜、土窑鸡、农家豆腐、手工面点等，都是游客喜爱的美食。',
-        category: '当地美食',
-        createTime: '2023-06-16 14:22:33'
-      },
-      {
-        id: 3,
-        question: '如何前往景区?',
-        answer: '您可以选择多种交通方式前往景区。公共交通有旅游专线大巴，每天早上8点到晚上6点，每小时一班。自驾的话，导航到"青山绿水景区"即可，景区有专门的停车场。',
-        category: '交通信息',
-        createTime: '2023-06-17 11:15:20'
-      }
-    ]
+    let response = ''
+    if (userQuestion.includes('景点')) {
+      response = exampleResponses['村里有什么景点']
+    } else if (userQuestion.includes('美食') || userQuestion.includes('吃')) {
+      response = exampleResponses['有什么当地美食']
+    } else {
+      response = '感谢您的提问，不过我目前的知识有限。随着知识库的更新，我将能回答更多问题。您可以询问关于景点或美食的问题试试。'
+    }
     
-    qaList.value = mockData
-    total.value = mockData.length
+    addMessage('assistant', response)
     loading.value = false
-  }, 300)
+  }, 1000)
 }
 
-// 查询
-const handleQuery = () => {
-  queryParams.page = 1
-  getList()
-}
-
-// 重置查询
-const resetQuery = () => {
-  queryParams.question = ''
-  handleQuery()
-}
-
-// 页码变化
-const handleCurrentChange = (val) => {
-  queryParams.page = val
-  getList()
-}
-
-// 每页条数变化
-const handleSizeChange = (val) => {
-  queryParams.pageSize = val
-  getList()
-}
-
-// 新增
-const handleAdd = () => {
-  dialogTitle.value = '新增问答'
-  Object.keys(qaForm).forEach(key => {
-    qaForm[key] = key === 'id' ? null : ''
+// 添加消息到列表
+const addMessage = (role, content) => {
+  messages.value.push({
+    role,
+    content,
+    time: new Date().toLocaleTimeString() // 虽然设计稿没显示时间，但保留数据
   })
-  dialogVisible.value = true
-}
-
-// 编辑
-const handleEdit = (row) => {
-  dialogTitle.value = '编辑问答'
-  Object.assign(qaForm, row)
-  dialogVisible.value = true
-}
-
-// 删除
-const handleDelete = (row) => {
-  ElMessageBox.confirm(
-    `确认删除问题 "${row.question}" 吗？`,
-    '删除确认',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(() => {
-    // 这里应该调用删除API
-    ElMessage.success('删除成功')
-    getList()
-  }).catch(() => {
-    // 取消删除
-  })
-}
-
-// 关闭对话框
-const handleDialogClose = () => {
-  dialogVisible.value = false
-}
-
-// 提交表单
-const submitForm = () => {
-  qaFormRef.value.validate((valid) => {
-    if (valid) {
-      // 这里应该调用保存API
-      if (qaForm.id) {
-        // 编辑
-        ElMessage.success('编辑成功')
-      } else {
-        // 新增
-        ElMessage.success('新增成功')
-      }
-      dialogVisible.value = false
-      getList()
+  
+  nextTick(() => {
+    if (chatContainer.value) {
+      chatContainer.value.scrollTop = chatContainer.value.scrollHeight
     }
   })
+}
+
+// 格式化消息内容，将换行符转为<br>以在v-html中生效
+const formatMessage = (text) => {
+  if (!text) return ''
+  return marked.parse(text);
+}
+
+// 清空聊天记录
+const clearChat = () => {
+  messages.value = []
+  addMessage('assistant', '您好！我是龙潭村的智能导游助手，有什么可以帮您的吗？')
+  ElMessage.success('对话已清空')
 }
 </script>
 
 <style scoped>
-.app-container {
-  padding: 20px;
+.chat-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 84px); /* 减去外层布局可能存在的头部高度 */
+  background-color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 }
 
-.card-header {
+.chat-header {
+  text-align: center;
+  padding: 16px;
+  border-bottom: 1px solid #e5e5e5;
+  flex-shrink: 0;
+}
+
+.chat-header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: #333;
+}
+
+.chat-messages {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 24px 16px;
+}
+
+.message-column {
+  max-width: 768px;
+  margin: 0 auto;
+}
+
+.empty-chat {
+  height: 100%;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: center;
 }
 
-.pagination {
-  margin-top: 20px;
+.message-wrapper {
   display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* AI message styling */
+.ai-message {
+  justify-content: flex-start;
+}
+
+.ai-avatar {
+  flex-shrink: 0;
+  background-color: #f0f2f5;
+  color: #555;
+}
+
+.message-content {
+  padding: 0;
+  border-radius: 8px;
+  word-break: break-word;
+  color: #333;
+  line-height: 1.7;
+}
+
+.message-text {
+  white-space: pre-wrap;
+}
+
+.message-actions {
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.ai-message:hover .message-actions {
+  opacity: 1;
+}
+
+.message-actions .el-button {
+  color: #666;
+}
+
+.message-actions .el-button:hover {
+  color: #333;
+}
+
+/* User message styling */
+.user-message {
   justify-content: flex-end;
+}
+
+.user-message .message-content {
+  background-color: #f0f2f5;
+  padding: 12px 16px;
+}
+
+/* Footer and Input */
+.chat-footer {
+  padding: 16px;
+  flex-shrink: 0;
+  background-color: #fff;
+  border-top: 1px solid #e5e5e5;
+}
+
+.chat-input-container {
+  max-width: 768px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.chat-input :deep(.el-textarea__inner) {
+  padding: 12px 50px 12px 16px !important; /* Make space for send button */
+  border-radius: 24px !important;
+  border: 1px solid #dcdfe6 !important;
+  background-color: #fff !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+  line-height: 1.6;
+  color: #333;
+}
+
+.send-button {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  background-color: #1c64f2;
+}
+
+.send-button:hover {
+  background-color: #1a5ac4;
+}
+
+.send-button:disabled {
+  background-color: #a0cfff;
+  cursor: not-allowed;
+}
+
+.footer-note {
+  max-width: 768px;
+  margin: 8px auto 0;
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+}
+
+/* Loading animation */
+.loading-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0;
+}
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #999;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+.loading-dots span:nth-of-type(1) { animation-delay: -0.32s; }
+.loading-dots span:nth-of-type(2) { animation-delay: -0.16s; }
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1.0); }
+}
+
+.message-content :deep(p) {
+  margin: 0;
+}
+
+.message-content :deep(ol),
+.message-content :deep(ul) {
+  padding-inline-start: 24px;
+  margin-block-start: 0.5em;
+  margin-block-end: 0.5em;
+}
+
+.message-content :deep(pre) {
+  background-color: #f5f5f5;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 8px 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.message-content :deep(code) {
+  font-family: 'Courier New', Courier, monospace;
+  background-color: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.message-content :deep(pre > code) {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 1em;
 }
 </style> 
