@@ -29,6 +29,6 @@ deploy:
     - ssh $SERVER_USER@$SERVER_HOST "docker pull $DOCKER_IMAGE"
     - ssh $SERVER_USER@$SERVER_HOST "docker stop vue3-admin || true"
     - ssh $SERVER_USER@$SERVER_HOST "docker rm vue3-admin || true"
-    - ssh $SERVER_USER@$SERVER_HOST "docker run -d --name vue3-admin -p 80:80 $DOCKER_IMAGE"
+    - ssh $SERVER_USER@$SERVER_HOST "docker run -d --name vue3-admin -p 3000:80 $DOCKER_IMAGE"
   only:
     - main 
