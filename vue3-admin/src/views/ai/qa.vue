@@ -2,6 +2,7 @@
   <div class="chat-page">
     <header class="chat-header">
       <h1>AI 智能助手</h1>
+      <el-button v-if="loading" @click="stopRequest" type="danger" size="small">停止生成</el-button>
     </header>
 
     <div class="chat-messages" ref="chatContainer">
@@ -20,8 +21,8 @@
               <div class="message-content">
                 <div class="message-text" v-html="formatMessage(msg.content)"></div>
                 <div v-if="msg.role === 'assistant' && !loading" class="message-actions">
-                  <el-button :icon="CopyDocument" link size="small" />
-                  <el-button :icon="Refresh" link size="small" />
+                  <el-button :icon="CopyDocument" link size="small" @click="copyMessage(msg.content)" />
+                  <el-button :icon="Refresh" link size="small" @click="regenerateMessage(index)" />
                 </div>
               </div>
           </div>
@@ -66,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, onBeforeUnmount } from 'vue'
 import { Service, Promotion, CopyDocument, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
@@ -76,6 +77,7 @@ const messages = ref([])
 const userInput = ref('')
 const loading = ref(false)
 const chatContainer = ref(null)
+let currentAbortController = null
 
 // 配置 marked
 marked.setOptions({
@@ -83,33 +85,12 @@ marked.setOptions({
   breaks: true, // 将换行符渲染为 <br>
 })
 
-// 示例问答对
-const exampleResponses = {
-  '村里有什么景点': `龙潭村有多处值得一游的景点：
-  1.  **龙潭瀑布**：村里最著名的自然景观，水流湍急，景色壮观。
-  2.  **古树林**：拥有超过500年历史的古树，其中"神树"是村子的象征。
-  3.  **传统民居群**：保存完好的明清建筑，展示了当地特色建筑风格。
-  4.  **山顶观景台**：可以俯瞰整个村庄和周围的群山。
-  
-  \`\`\`bash
-  # 推荐游览路线
-  村口 -> 龙潭瀑布 -> 古树林 -> 山顶观景台
-  \`\`\``,
-  
-  '有什么当地美食': `龙潭村的特色美食非常丰富：
-*   **竹筒饭**：将米饭放入新鲜的竹筒中蒸煮，香气四溢。
-*   **烤全羊**：采用传统工艺烤制，肉质鲜嫩多汁。
-*   **野菜煎饼**：采用当地野生蔬菜制作，营养丰富。
-*   **农家豆腐**：手工制作，口感细腻。
-*   **山泉鱼**：使用清澈的山泉水养殖的鱼，肉质鲜美。`
-}
-
 onMounted(() => {
   addMessage('assistant', '您好！我是龙潭村的智能导游助手，有什么可以帮您的吗？')
 })
 
 // 发送消息
-const sendMessage = () => {
+const sendMessage = async () => {
   if (!userInput.value.trim() || loading.value) return
   
   const userQuestion = userInput.value.trim()
@@ -118,19 +99,104 @@ const sendMessage = () => {
   
   loading.value = true
   
-  setTimeout(() => {
-    let response = ''
-    if (userQuestion.includes('景点')) {
-      response = exampleResponses['村里有什么景点']
-    } else if (userQuestion.includes('美食') || userQuestion.includes('吃')) {
-      response = exampleResponses['有什么当地美食']
-    } else {
-      response = '感谢您的提问，不过我目前的知识有限。随着知识库的更新，我将能回答更多问题。您可以询问关于景点或美食的问题试试。'
+  try {
+    // 添加一个空的助手消息用于实时更新
+    addMessage('assistant', '')
+    const assistantMessageIndex = messages.value.length - 1 // 获取刚添加的消息索引
+    
+    // 使用 fetch 替代 EventSource
+    const token = sessionStorage.getItem('token')
+    currentAbortController = new AbortController()
+    
+    const response = await fetch(`/api/chat/stream?message=${encodeURIComponent(userQuestion)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `${token}` : '',
+        'Accept': 'text/event-stream',
+        'Cache-Control': 'no-cache'
+      },
+      signal: currentAbortController.signal
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
     
-    addMessage('assistant', response)
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    
+    // 修改流式数据处理逻辑
+    const readStream = async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          
+          if (done) {
+            loading.value = false
+            break
+          }
+          
+          const chunk = decoder.decode(value, { stream: true })
+          const lines = chunk.split('\n')
+          
+          for (const line of lines) {
+
+            const data = line.slice(5) // 去掉 "data: " 前缀
+            
+            if (data === '[DONE]') {
+              loading.value = false
+              return
+            }
+
+            // 直接添加数据到消息内容
+            if (messages.value[assistantMessageIndex] && data) {
+              console.log('接收到数据:', data)
+              messages.value[assistantMessageIndex].content += data
+              console.log('更新后消息内容:', messages.value[assistantMessageIndex].content)
+              scrollToBottom()
+            }
+          }
+          
+        }
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          console.log('请求已取消')
+          return
+        }
+        
+        console.error('流读取错误:', error)
+        loading.value = false
+        
+        if (messages.value[assistantMessageIndex]) {
+          messages.value[assistantMessageIndex].content = '抱歉，服务暂时不可用，请稍后再试。'
+        }
+        
+        ElMessage.error('网络连接错误，请稍后重试')
+      }
+    }
+    
+    readStream()
+    
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log('请求已取消')
+      return
+    }
+    
+    console.error('发送消息失败:', error)
     loading.value = false
-  }, 1000)
+    addMessage('assistant', '抱歉，服务暂时不可用，请稍后再试。')
+    ElMessage.error('发送失败，请检查网络连接')
+  }
+}
+
+// 停止当前请求
+const stopRequest = () => {
+  if (currentAbortController) {
+    currentAbortController.abort()
+    currentAbortController = null
+    loading.value = false
+  }
 }
 
 // 添加消息到列表
@@ -138,9 +204,14 @@ const addMessage = (role, content) => {
   messages.value.push({
     role,
     content,
-    time: new Date().toLocaleTimeString() // 虽然设计稿没显示时间，但保留数据
+    time: new Date().toLocaleTimeString()
   })
   
+  scrollToBottom()
+}
+
+// 滚动到底部
+const scrollToBottom = () => {
   nextTick(() => {
     if (chatContainer.value) {
       chatContainer.value.scrollTop = chatContainer.value.scrollHeight
@@ -148,18 +219,45 @@ const addMessage = (role, content) => {
   })
 }
 
-// 格式化消息内容，将换行符转为<br>以在v-html中生效
+// 格式化消息内容
 const formatMessage = (text) => {
   if (!text) return ''
-  return marked.parse(text);
+  return marked.parse(text)
+}
+
+// 复制消息内容
+const copyMessage = (content) => {
+  navigator.clipboard.writeText(content).then(() => {
+    ElMessage.success('已复制到剪贴板')
+  }).catch(() => {
+    ElMessage.error('复制失败')
+  })
+}
+
+// 重新生成回答
+const regenerateMessage = (index) => {
+  if (index > 0 && messages.value[index - 1]?.role === 'user') {
+    const userQuestion = messages.value[index - 1].content
+    // 移除当前AI回答
+    messages.value.splice(index, 1)
+    // 重新发送请求
+    userInput.value = userQuestion
+    sendMessage()
+  }
 }
 
 // 清空聊天记录
 const clearChat = () => {
+  stopRequest()
   messages.value = []
   addMessage('assistant', '您好！我是龙潭村的智能导游助手，有什么可以帮您的吗？')
   ElMessage.success('对话已清空')
 }
+
+// 组件卸载时清理
+onBeforeUnmount(() => {
+  stopRequest()
+})
 </script>
 
 <style scoped>
