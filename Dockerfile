@@ -10,8 +10,8 @@ ENV TZ=Asia/Shanghai
 # 复制package文件
 COPY package*.json ./
 
-# 安装依赖
-RUN npm ci --only=production
+# 安装所有依赖（包括devDependencies，构建需要vite）
+RUN npm ci
 
 # 复制源代码
 COPY . .
