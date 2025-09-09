@@ -63,53 +63,34 @@ jobs:
             # 配置 SSH 密钥
             mkdir -p ~/.ssh
             chmod 700 ~/.ssh
-            
-            # 调试：检查 SSH_PRIVATE_KEY 是否存在
-            echo "=== SSH_PRIVATE_KEY Debug ==="
-            if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
-              echo "ERROR: SSH_PRIVATE_KEY is empty or not set!"
-              exit 1
-            else
-              echo "SSH_PRIVATE_KEY is set (length: ${#SSH_PRIVATE_KEY})"
-            fi
-            
-            # 写入密钥文件
             echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
             chmod 600 ~/.ssh/id_rsa
             
-            # 调试：验证密钥文件
-            echo "=== SSH Key File Debug ==="
-            echo "Key file size: $(wc -c < ~/.ssh/id_rsa)"
-            echo "Key file lines: $(wc -l < ~/.ssh/id_rsa)"
-            echo "First line: $(head -1 ~/.ssh/id_rsa)"
-            echo "Last line: $(tail -1 ~/.ssh/id_rsa)"
-            echo "Key file permissions: $(ls -la ~/.ssh/id_rsa)"
-            
-            # 调试：检查密钥格式
-            if grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa; then
-              echo "✅ Key format looks correct (contains BEGIN/END markers)"
-            else
-              echo "❌ Key format might be incorrect (missing BEGIN/END markers)"
-            fi
+            # 配置 SSH 使用 443 端口连接 GitHub
+            cat > ~/.ssh/config << 'EOF'
+Host github.com
+    Hostname ssh.github.com
+    Port 443
+    User git
+EOF
+            chmod 600 ~/.ssh/config
             
             # 配置 SSH 主机密钥验证
-            ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+            ssh-keyscan -p 443 ssh.github.com >> ~/.ssh/known_hosts
             
             # 启动 SSH agent 并添加密钥
             eval "$(ssh-agent -s)"
-            echo "=== SSH Agent Debug ==="
             ssh-add ~/.ssh/id_rsa
-            ssh-add -l
             
             # 配置 Git 用户信息
             git config --global user.name "Deploy Bot"
             git config --global user.email "deploy@travel-frontend"
             
-            # 测试 SSH 连接
-            echo "=== Testing SSH Connection ==="
-            ssh -v -T git@github.com 2>&1 | head -20
+            # 测试 SSH 连接（使用 443 端口）
+            echo "=== Testing SSH Connection over 443 ==="
+            ssh -T git@github.com
             
-            # 克隆或更新代码仓库 - 使用SSH
+            # 克隆或更新代码仓库 - 使用SSH over HTTPS
             if [ -d "/opt/travel-frontend/.git" ]; then
               cd /opt/travel-frontend
               git pull origin master
