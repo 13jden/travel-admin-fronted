@@ -1,4 +1,4 @@
-# 构建阶段
+﻿# 构建阶段
 FROM node:18-alpine AS builder
 
 # 设置工作目录
@@ -32,11 +32,11 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # 暴露端口
-EXPOSE 3000  # 改为3000端口
+EXPOSE 3000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000 || exit 1  # 健康检查改为3000端口
+    CMD curl -f http://localhost:3000 || exit 1
 
 # 启动nginx
-CMD ["nginx", "-g", "daemon off;"] 
+CMD ["nginx", "-g", "daemon off;"]
