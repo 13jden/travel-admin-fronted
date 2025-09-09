@@ -68,11 +68,11 @@ jobs:
             
             # 配置 SSH 使用 443 端口连接 GitHub
             cat > ~/.ssh/config << 'EOF'
-Host github.com
-    Hostname ssh.github.com
-    Port 443
-    User git
-EOF
+            Host github.com
+                Hostname ssh.github.com
+                Port 443
+                User git
+            EOF
             chmod 600 ~/.ssh/config
             
             # 配置 SSH 主机密钥验证
