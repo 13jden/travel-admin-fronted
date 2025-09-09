@@ -1,4 +1,4 @@
-﻿# 构建阶段
+# 构建阶段
 FROM node:18-alpine AS builder
 
 # 设置工作目录
