@@ -5,12 +5,12 @@ services:
     image: crpi-aer4k3m8uw2sue3f.cn-hangzhou.personal.cr.aliyuncs.com/dzkdzk/travel-fronted:latest
     container_name: travel-frontend
     ports:
-      - "80:3000"  # 服务器80端口映射到容器3000端口
+      - "80:80"  # 服务器80端口映射到容器80端口
     restart: unless-stopped
     environment:
       - TZ=Asia/Shanghai
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "curl", "-f", "http://localhost:80"]  # 修改为80端口
       interval: 30s
       timeout: 10s
       retries: 3

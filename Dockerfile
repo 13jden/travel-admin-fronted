@@ -32,11 +32,11 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx/default.conf /etc/nginx/nginx.conf
 
 # 暴露端口
-EXPOSE 3000
+EXPOSE 80
 
-# 健康检查
+# 健康检查 - 修改为访问 80 端口
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000 || exit 1
+    CMD curl -f http://localhost:80 || exit 1
 
 # 启动nginx
 CMD ["nginx", "-g", "daemon off;"]
