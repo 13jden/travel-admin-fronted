@@ -276,7 +276,7 @@ onUnmounted(() => {
     
     :deep(.el-menu-item) {
       &.is-active {
-        background-color: #409EFF !important;
+        background-color: #2c3e50 !important;
       }
     }
 
