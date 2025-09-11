@@ -1,12 +1,12 @@
 <template>
-  <div class="dashboard-v2-container">
-    <!-- 头部 -->
-    <el-row :gutter="20" class="header-row">
+  <div class="dashboard-v2-container" :class="{ 'mobile': isMobile }">
+    <!-- 头部欢迎区域 -->
+    <el-row :gutter="isMobile ? 10 : 20" class="header-row">
       <el-col>
         <div class="welcome-card">
           <div class="welcome-text">
             <h2>你好, Admin!</h2>
-            <p>欢迎回到龙潭村数字旅游管理后台，祝你拥有高效愉快的一天！</p>
+            <p>{{ isMobile ? '欢迎回到龙潭村数字旅游管理后台' : '欢迎回到龙潭村数字旅游管理后台，祝你拥有高效愉快的一天！' }}</p>
           </div>
           <div class="weather-info">
             <span>龙潭村</span>
@@ -18,8 +18,8 @@
     </el-row>
 
     <!-- 快捷操作 -->
-    <el-row :gutter="20">
-      <el-col v-for="action in quickActions" :key="action.title" :span="6">
+    <el-row :gutter="isMobile ? 10 : 20">
+      <el-col v-for="action in quickActions" :key="action.title" :span="isMobile ? 12 : 6">
         <div class="quick-action-card" :style="{ background: action.color }" @click="() => {}">
           <el-icon><component :is="action.icon" /></el-icon>
           <span>{{ action.title }}</span>
@@ -28,8 +28,8 @@
     </el-row>
 
     <!-- 数据卡片 -->
-    <el-row :gutter="20">
-      <el-col :span="6" v-for="card in statCards" :key="card.title">
+    <el-row :gutter="isMobile ? 10 : 20">
+      <el-col :span="isMobile ? 12 : 6" v-for="card in statCards" :key="card.title">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-card-header">
             <span class="stat-title">{{ card.title }}</span>
@@ -57,14 +57,14 @@
     </el-row>
 
     <!-- 中部图表和列表 -->
-    <el-row :gutter="20" class="main-content-row">
+    <el-row :gutter="isMobile ? 10 : 20" class="main-content-row">
       <!-- 游客流量趋势 -->
-      <el-col :span="16">
+      <el-col :span="isMobile ? 24 : 16">
         <el-card shadow="hover" class="chart-card">
            <template #header>
             <div class="card-header">
               <span>游客流量趋势</span>
-              <el-radio-group v-model="timeRange" size="small" @change="initMainChart">
+              <el-radio-group v-model="timeRange" :size="isMobile ? 'small' : 'default'" @change="initMainChart">
                 <el-radio-button label="week">本周</el-radio-button>
                 <el-radio-button label="month">本月</el-radio-button>
               </el-radio-group>
@@ -75,7 +75,7 @@
       </el-col>
 
       <!-- 收入分析 -->
-      <el-col :span="8">
+      <el-col :span="isMobile ? 24 : 8">
         <el-card shadow="hover" class="pie-chart-card">
           <template #header>
             <div class="card-header">
@@ -87,9 +87,9 @@
       </el-col>
     </el-row>
 
-    <!-- 底部表格 -->
-     <el-row :gutter="20">
-      <el-col :span="16">
+    <!-- 底部表格和待办事项 -->
+     <el-row :gutter="isMobile ? 10 : 20">
+      <el-col :span="isMobile ? 24 : 16">
          <el-card shadow="hover" class="table-card">
           <template #header>
             <div class="card-header">
@@ -97,19 +97,24 @@
                <el-tag type="danger" effect="dark" size="small">Top 5</el-tag>
             </div>
           </template>
-          <el-table :data="hotContents" style="width: 100%" v-loading="hotContentsLoading">
-            <el-table-column label="排名" width="80">
+          <el-table 
+            :data="hotContents" 
+            style="width: 100%" 
+            v-loading="hotContentsLoading"
+            :size="isMobile ? 'small' : 'default'"
+          >
+            <el-table-column label="排名" :width="isMobile ? 60 : 80">
               <template #default="scope">
                 <div class="rank" :class="{ 'top-rank': scope.$index < 3 }">{{ scope.$index + 1 }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="名称" min-width="200" show-overflow-tooltip prop="title" />
-            <el-table-column label="类型" width="120">
+            <el-table-column label="名称" :min-width="isMobile ? 120 : 200" show-overflow-tooltip prop="title" />
+            <el-table-column label="类型" :width="isMobile ? 80 : 120" v-if="!isMobile">
                 <template #default="scope">
                     <el-tag :type="scope.row.type === '景点' ? 'warning' : 'success'">{{ scope.row.type }}</el-tag>
                 </template>
             </el-table-column>
-            <el-table-column label="热度" width="120" align="right" prop="heat" sortable>
+            <el-table-column label="热度" :width="isMobile ? 80 : 120" align="right" prop="heat" sortable>
                 <template #default="scope">
                     {{ formatNumber(scope.row.heat || 0) }}
                 </template>
@@ -117,15 +122,15 @@
           </el-table>
         </el-card>
       </el-col>
-      <el-col :span="8">
+      <el-col :span="isMobile ? 24 : 8">
         <el-card shadow="hover" class="todo-list-card">
           <template #header>
             <div class="card-header">
               <span>待办事项</span>
-              <el-button type="primary" size="small" plain>查看全部</el-button>
+              <el-button type="primary" :size="isMobile ? 'small' : 'default'" plain>查看全部</el-button>
             </div>
           </template>
-          <div v-for="item in todoList" :key="item.id" class="todo-item">
+          <div v-for="item in (isMobile ? todoList.slice(0, 3) : todoList)" :key="item.id" class="todo-item">
             <el-checkbox :model-value="item.done" :label="item.text" />
             <el-tag :type="item.tagType || 'info'" size="small">{{ item.tag }}</el-tag>
           </div>
@@ -136,7 +141,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
 import { CountTo } from 'vue3-count-to'
 import { 
@@ -148,6 +153,9 @@ import {
   CaretTop,
   CaretBottom
 } from '@element-plus/icons-vue'
+
+// 响应式状态
+const isMobile = ref(false)
 
 const quickActions = ref([
   { title: '发布攻略', icon: 'Guide', color: 'linear-gradient(to right, #4facfe 0%, #00f2fe 100%)' },
@@ -185,6 +193,19 @@ let pieChartInstance = null
 const mainChart = ref(null)
 const pieChart = ref(null)
 
+// 检测屏幕宽度
+const checkScreenSize = () => {
+  isMobile.value = window.innerWidth <= 768
+  
+  // 移动端时重新初始化图表
+  if (mainChartInstance || pieChartInstance) {
+    nextTick(() => {
+      mainChartInstance?.resize()
+      pieChartInstance?.resize()
+    })
+  }
+}
+
 const initMainChart = () => {
   if (!mainChart.value) return
   mainChartInstance = echarts.init(mainChart.value)
@@ -194,9 +215,26 @@ const initMainChart = () => {
   
   const option = {
     tooltip: { trigger: 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', boundaryGap: false, data: days },
-    yAxis: { type: 'value' },
+    grid: { 
+      left: isMobile.value ? '5%' : '3%', 
+      right: isMobile.value ? '5%' : '4%', 
+      bottom: '3%', 
+      containLabel: true 
+    },
+    xAxis: { 
+      type: 'category', 
+      boundaryGap: false, 
+      data: days,
+      axisLabel: {
+        fontSize: isMobile.value ? 10 : 12
+      }
+    },
+    yAxis: { 
+      type: 'value',
+      axisLabel: {
+        fontSize: isMobile.value ? 10 : 12
+      }
+    },
     series: [{
       name: '游客数量',
       type: 'line',
@@ -218,10 +256,16 @@ const initPieChart = () => {
   pieChartInstance = echarts.init(pieChart.value)
   const option = {
     tooltip: { trigger: 'item', formatter: '{b}: ¥{c} ({d}%)' },
-    legend: { orient: 'horizontal', bottom: '0', },
+    legend: { 
+      orient: 'horizontal', 
+      bottom: '0',
+      textStyle: {
+        fontSize: isMobile.value ? 10 : 12
+      }
+    },
     series: [{
       type: 'pie',
-      radius: ['45%', '70%'],
+      radius: isMobile.value ? ['40%', '65%'] : ['45%', '70%'],
       center: ['50%', '45%'],
       avoidLabelOverlap: false,
       itemStyle: {
@@ -261,6 +305,9 @@ const fetchHotContents = () => {
 }
 
 onMounted(() => {
+  checkScreenSize()
+  window.addEventListener('resize', checkScreenSize)
+  
   nextTick(() => {
     initMainChart()
     initPieChart()
@@ -273,12 +320,66 @@ onMounted(() => {
     window.addEventListener('resize', resizeCharts)
   })
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkScreenSize)
+})
 </script>
 
 <style lang="scss" scoped>
 .dashboard-v2-container {
   padding: 20px;
   background-color: #f7f8fa;
+  
+  &.mobile {
+    padding: 10px;
+    
+    .header-row, .quick-action-card, .el-card, .main-content-row > .el-col > .el-card {
+      margin-bottom: 15px;
+    }
+    
+    .welcome-card {
+      padding: 15px 20px;
+      
+      h2 {
+        font-size: 18px;
+      }
+      
+      p {
+        font-size: 12px;
+      }
+      
+      .weather-info {
+        font-size: 14px;
+        .el-icon { font-size: 20px; }
+      }
+    }
+    
+    .quick-action-card {
+      padding: 15px;
+      .el-icon {
+        font-size: 24px;
+      }
+      span {
+        font-size: 14px;
+      }
+    }
+    
+    .stat-card {
+      .stat-card-content .stat-value {
+        font-size: 24px;
+      }
+    }
+    
+    .chart-card, .pie-chart-card {
+      height: 350px;
+      .chart { height: calc(100% - 50px); }
+    }
+    
+    .card-header {
+      span { font-size: 14px; }
+    }
+  }
   
   .header-row, .quick-action-card, .el-card, .main-content-row > .el-col > .el-card {
     margin-bottom: 20px;
@@ -414,6 +515,17 @@ onMounted(() => {
           overflow: hidden;
           white-space: nowrap;
         }
+      }
+    }
+  }
+}
+
+// 移动端特殊样式
+@media (max-width: 768px) {
+  .dashboard-v2-container {
+    .main-content-row {
+      .el-col:first-child {
+        margin-bottom: 15px;
       }
     }
   }
