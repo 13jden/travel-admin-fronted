@@ -1,34 +1,48 @@
 <template>
   <div class="guides-container">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>旅游攻略管理</span>
-          <el-button type="primary" @click="handleAdd">
-            <el-icon><Plus /></el-icon>
-            新建攻略
-          </el-button>
-        </div>
-      </template>
-
-      <!-- 筛选区域 -->
-      <div class="filter-container">
-        <el-input
-          v-model="filters.title"
-          placeholder="请输入标题关键字"
-          style="width: 200px;"
-          clearable
-          @keyup.enter="handleFilter"
-        />
-        <el-select v-model="filters.type" placeholder="请选择类型" clearable style="width: 150px; margin-left: 10px;">
-          <el-option v-for="item in guideTypes" :key="item.value" :label="item.label" :value="item.value" />
-        </el-select>
-        <el-button type="primary" @click="handleFilter" style="margin-left: 10px;">搜索</el-button>
-        <el-button @click="resetFilters">重置</el-button>
+    <!-- 页面头部 -->
+    <div class="page-header">
+      <div class="header-left">
+        <h2>旅游攻略管理</h2>
+        <p>管理旅游攻略内容，包括美食、景点、文化体验等</p>
       </div>
+      <el-button type="primary" class="add-btn" @click="handleAdd">
+        <el-icon><Plus /></el-icon>
+        新建攻略
+      </el-button>
+    </div>
 
-      <!-- 表格区域 -->
-      <el-table :data="filteredGuides" v-loading="loading" style="width: 100%; margin-top: 20px;">
+    <!-- 搜索筛选区域 -->
+    <el-card class="search-card">
+      <el-form :model="filters" class="search-form" inline>
+        <el-form-item>
+          <el-input
+            v-model="filters.title"
+            placeholder="请输入标题关键字"
+            clearable
+            @keyup.enter="handleFilter"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-select v-model="filters.type" placeholder="请选择类型" clearable>
+            <el-option v-for="item in guideTypes" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleFilter">搜索</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <!-- 桌面端表格 -->
+    <el-card class="table-card">
+      <el-table 
+        :data="filteredGuides" 
+        v-loading="loading" 
+        class="desktop-table"
+        style="width: 100%;"
+      >
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="title" label="标题" min-width="200" />
         <el-table-column label="类型" width="120">
@@ -52,9 +66,69 @@
       </el-table>
     </el-card>
 
+    <!-- 移动端列表 -->
+    <div class="mobile-list">
+      <div v-for="guide in filteredGuides" :key="guide.id" class="mobile-card">
+        <!-- 攻略头部信息 -->
+        <div class="guide-header">
+          <div class="guide-title">
+            <h3 class="guide-name">{{ guide.title }}</h3>
+            <el-tag :type="getTypeTag(guide.type)" size="small">{{ formatType(guide.type) }}</el-tag>
+          </div>
+        </div>
+
+        <!-- 攻略详细信息 -->
+        <div class="guide-details">
+          <div class="details-left">
+            <div class="info-row">
+              <span class="label">作者：</span>
+              <span class="value">{{ guide.author }}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">创建时间：</span>
+              <span class="value">{{ guide.createdAt }}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">推荐状态：</span>
+              <el-switch 
+                v-model="guide.isRecommended" 
+                @change="handleRecommendChange(guide)"
+                size="small"
+              />
+            </div>
+          </div>
+          
+          <div class="details-right">
+            <el-button 
+              type="primary" 
+              class="action-btn"
+              @click="handleEdit(guide)"
+            >
+              <el-icon><Edit /></el-icon>
+            </el-button>
+            <div style="padding-right: 10px;">
+              <el-button 
+              type="danger" 
+              class="action-btn"
+              @click="handleDelete(guide)"
+            >
+              <el-icon><Delete /></el-icon>
+            </el-button>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 新增/编辑 对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="60%">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-dialog 
+      v-model="dialogVisible" 
+      :title="dialogTitle" 
+      width="60%" 
+      class="guide-dialog"
+    >
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" class="guide-form">
         <el-form-item label="攻略标题" prop="title">
           <el-input v-model="form.title" placeholder="请输入攻略标题" />
         </el-form-item>
@@ -77,8 +151,10 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取 消</el-button>
-        <el-button type="primary" @click="submitForm">确 定</el-button>
+        <div class="dialog-footer">
+          <el-button @click="dialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="submitForm">确 定</el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -87,7 +163,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 
 const loading = ref(false)
 const guides = ref([])
@@ -223,14 +299,226 @@ const getTypeTag = (type) => {
 
 <style scoped>
 .guides-container {
-  padding: 20px;
+  padding: 24px;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
 }
-.card-header {
+
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 24px;
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
-.filter-container {
+
+.header-left h2 {
+  margin: 0 0 8px 0;
+  color: #303133;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.header-left p {
+  margin: 0;
+  color: #909399;
+  font-size: 14px;
+}
+
+.add-btn {
+  height: 40px;
+  padding: 0 20px;
+  font-size: 14px;
+}
+
+.search-card {
+  margin-bottom: 24px;
+  border-radius: 8px;
+}
+
+.search-form {
+  margin: 0;
+}
+
+.search-form .el-form-item {
+  margin-bottom: 0;
+}
+
+.table-card {
+  border-radius: 8px;
+}
+
+.desktop-table {
+  display: table;
+}
+
+.mobile-list {
+  display: none;
+}
+
+.mobile-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 移动端攻略头部区域 */
+.guide-header {
+  margin-bottom: 16px;
+}
+
+.guide-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.guide-name {
+  font-weight: 600;
+  color: #303133;
+  font-size: 16px;
+  margin: 0;
+}
+
+/* 移动端攻略详细信息区域 */
+.guide-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 100px;
+  position: relative;
+}
+
+.details-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding-right: 60px;
+}
+
+.details-right {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.action-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  color: #909399;
+  font-size: 14px;
+}
+
+.value {
+  color: #606266;
+  font-size: 14px;
+}
+
+.guide-dialog .el-dialog__body {
+  padding: 20px 24px;
+}
+
+.guide-form .el-form-item {
   margin-bottom: 20px;
+}
+
+.dialog-footer {
+  text-align: right;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .guides-container {
+    padding: 16px;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .search-form {
+    flex-direction: column;
+  }
+  
+  .search-form .el-form-item {
+    width: 100%;
+    margin-bottom: 16px;
+  }
+  
+  .search-form .el-input,
+  .search-form .el-select {
+    width: 100% !important;
+  }
+
+  .desktop-table {
+    display: none;
+  }
+
+  .mobile-list {
+    display: block;
+  }
+
+  .guide-dialog .el-dialog__body {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .guides-container {
+    padding: 16px;
+  }
+  
+  .page-header {
+    padding: 16px;
+  }
+  
+  .header-left h2 {
+    font-size: 20px;
+  }
+
+  .mobile-card {
+    padding: 12px;
+  }
+
+  .guide-header {
+    margin-bottom: 12px;
+  }
+
+  .details-left {
+    padding-right: 50px;
+  }
+
+  .action-btn {
+    width: 36px;
+    height: 36px;
+  }
 }
 </style> 
