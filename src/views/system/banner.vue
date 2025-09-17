@@ -89,19 +89,12 @@
         label-width="100px"
       >
         <el-form-item label="图片" prop="image">
-          <el-upload
-            action=""
-            :http-request="uploadRequest"
-            :file-list="fileList"
-            :on-remove="handleRemove"
-            :limit="1"
-            :disabled="fileList.length >= 1"
-          >
-            <el-button size="small" type="primary" :disabled="fileList.length >= 1">点击上传</el-button>
-            <template #tip>
-              <div class="el-upload__tip">只能上传一张图片，如需更换请先删除当前图片</div>
-            </template>
-          </el-upload>
+          <div class="upload-placeholder">
+            <el-button size="small" type="primary" @click="showComingSoon">
+              点击上传
+            </el-button>
+            <div class="upload-tip">图片上传功能待开发</div>
+          </div>
         </el-form-item>
         <el-form-item label="类型" prop="type">
           <el-select v-model="form.type" placeholder="请选择类型">
@@ -133,7 +126,6 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getBannerList, addBanner, updateBanner, deleteBanner, updateBannerSort } from '@/api/banner'
-import { uploadImage, deleteTempImage, deleteBannerImage } from '@/api/image'
 
 // 表格数据
 const loading = ref(false)
@@ -156,20 +148,18 @@ const form = ref({
   text: '',
   contentId: null
 })
-const fileList = ref([])
 
 // 表单验证规则
 const rules = {
-  image: [
-    { required: true, message: '请上传图片', trigger: 'change' }
-  ],
   type: [
     { required: true, message: '请选择类型', trigger: 'change' }
   ]
 }
 
-// 保存原始图片地址，用于判断是否修改
-const originalImage = ref('')
+// 显示待开发提示
+const showComingSoon = () => {
+  ElMessage.info('图片上传功能待开发，敬请期待！')
+}
 
 // 获取Banner列表
 const getList = async () => {
@@ -204,14 +194,12 @@ const handleAdd = () => {
     text: '',
     contentId: null
   }
-  fileList.value = []
   dialogVisible.value = true
 }
 
 // 编辑Banner
 const handleEdit = (row) => {
   dialogType.value = 'edit'
-  originalImage.value = row.image  // 保存原始图片地址
   form.value = { 
     id: row.bannerId,
     image: row.image,
@@ -220,7 +208,6 @@ const handleEdit = (row) => {
     contentId: row.contentId,
     on: row.on
   }
-  fileList.value = [{ name: row.image, url: row.image }]
   dialogVisible.value = true
 }
 
@@ -258,28 +245,20 @@ const handleSubmit = async () => {
         let res
         if (dialogType.value === 'add') {
           res = await addBanner({
-            image: form.value.image,
+            image: form.value.image || 'https://via.placeholder.com/300x200?text=待上传图片',
             type: form.value.type,
             text: form.value.text,
             contentId: form.value.contentId,
             isActive: 1 // 使用isActive代替on
           })
         } else {
-          // 创建更新数据对象
-          const updateData = {
+          res = await updateBanner({
             bannerId: form.value.id,
             type: form.value.type,
             text: form.value.text,
             contentId: form.value.contentId,
             isActive: form.value.on // 使用isActive代替on
-          }
-          
-          // 只有在图片被修改时才传递image字段
-          if (form.value.image !== originalImage.value) {
-            updateData.image = form.value.image
-          }
-          
-          res = await updateBanner(updateData)
+          })
         }
         
         if (res.code === 1) {
@@ -298,65 +277,10 @@ const handleSubmit = async () => {
 
 // 取消操作
 const handleCancel = () => {
-  if (dialogType.value === 'add' && form.value.image) {
-    const fileName = getFileNameFromUrl(form.value.image)
-    deleteTempImage(fileName)
-  }
   dialogVisible.value = false
   if (formRef.value) {
     formRef.value.resetFields()
   }
-  fileList.value = []
-}
-
-// 上传图片请求
-const uploadRequest = async ({ file }) => {
-  // 如果已经有图片，提示先删除
-  if (fileList.value.length > 0) {
-    ElMessage.warning('请先删除当前图片再上传新图片')
-    return
-  }
-  
-  try {
-    const res = await uploadImage(file)
-    if (res.code === 1) {
-      form.value.image = res.data
-      fileList.value = [{ name: res.data, url: res.data }]
-    } else {
-      ElMessage.error(res.message || '图片上传失败')
-    }
-  } catch (error) {
-    ElMessage.error('图片上传失败')
-  }
-}
-
-// 移除图片
-const handleRemove = (file) => {
-  const fileName = getFileNameFromUrl(file.url || file.name)
-  
-  if (dialogType.value === 'add') {
-    deleteTempImage(fileName)
-  } else {
-    deleteBannerImage(fileName)
-  }
-  
-  form.value.image = ''
-}
-
-// 从URL中提取文件名
-const getFileNameFromUrl = (url) => {
-  if (!url) return ''
-  
-  if (url.includes('/')) {
-    return url.substring(url.lastIndexOf('/') + 1)
-  }
-  
-  return url
-}
-
-// 上传成功
-const handleSuccess = (response, file, fileList) => {
-  form.value.image = response.data
 }
 
 // 初始化时添加拖拽事件监听
@@ -525,6 +449,22 @@ const handleStatusChange = async (row, value) => {
   .drag-handle {
     cursor: move;
     user-select: none;
+  }
+
+  .upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    border: 2px dashed #d9d9d9;
+    border-radius: 6px;
+    background-color: #fafafa;
+    
+    .upload-tip {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #999;
+    }
   }
 
   :deep(.el-table__row) {
