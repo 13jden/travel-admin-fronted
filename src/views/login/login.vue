@@ -1,26 +1,31 @@
 <template>
   <div class="login-container">
     <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" class="login-form">
-      <h3 class="title">数字旅游后台管理系统</h3>
+      <h3 class="title">
+        <span class="title-main">数字旅游后台管理系统</span>
+        <span class="title-sub">Digital Tourism Management System</span>
+      </h3>
       
       <el-form-item prop="username">
         <el-input
           v-model="loginForm.username"
-          placeholder="用户名"
+          placeholder="用户名 / Username"
           type="text"
           auto-complete="off"
           prefix-icon="User"
+          class="form-input"
         />
       </el-form-item>
       
       <el-form-item prop="password">
         <el-input
           v-model="loginForm.password"
-          placeholder="密码"
+          placeholder="密码 / Password"
           type="password"
           auto-complete="off"
           prefix-icon="Lock"
           show-password
+          class="form-input"
           @keyup.enter="handleLogin"
         />
       </el-form-item>
@@ -29,11 +34,11 @@
         <div class="check-code-container">
           <el-input
             v-model="loginForm.code"
-            placeholder="验证码"
+            placeholder="验证码 / Verification Code"
             type="text"
             auto-complete="off"
             prefix-icon="Key"
-            style="width: 60%"
+            class="form-input code-input"
             @keyup.enter="handleLogin"
           />
           <div class="captcha-container">
@@ -43,7 +48,7 @@
               class="check-code-img"
               @click="refreshCaptcha"
               alt="验证码"
-              title="点击刷新验证码"
+              title="点击刷新验证码 / Click to refresh"
             />
             <div v-else class="captcha-loading">
               <el-icon class="is-loading"><Loading /></el-icon>
@@ -55,10 +60,13 @@
       <el-button
         :loading="loading"
         type="primary"
-        style="width: 100%"
+        class="login-button"
         @click="handleLogin"
       >
-        登录
+        <span class="button-text">
+          <span class="button-main">登录</span>
+          <span class="button-sub">Login</span>
+        </span>
       </el-button>
     </el-form>
   </div>
@@ -108,9 +116,9 @@ const loginRules = {
 const refreshCaptcha = async () => {
   try {
     const res = await getCaptcha()
-    console.log('验证码响应:', res) // 调试日志
+    console.log('验证码响应:', res)
     
-    if (res.code === 1) { // 修改：后端返回 code: 1 表示成功
+    if (res.code === 1) {
       captchaImg.value = res.data.img
       captchaUuid.value = res.data.uuid
       loginForm.uuid = res.data.uuid
@@ -139,9 +147,9 @@ const handleLogin = async () => {
           uuid: loginForm.uuid
         })
         
-        console.log('登录响应:', res) // 调试日志
+        console.log('登录响应:', res)
         
-        if (res.code === 1) { // 修改：后端返回 code: 1 表示成功
+        if (res.code === 1) {
           ElMessage.success('登录成功')
           
           // 保存用户信息和token
@@ -165,7 +173,7 @@ const handleLogin = async () => {
         }
       } catch (error) {
         console.error('登录失败:', error)
-        ElMessage.error('登录失败，请检查网络连接')
+        ElMessage.error('登录失败')
         // 登录失败后刷新验证码
         refreshCaptcha()
       } finally {
@@ -187,22 +195,76 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: url('../../images/admin-cover.jpg') no-repeat center center;
+  background-size: cover;
 
   .login-form {
-    width: 400px;
+    width: 420px;
     padding: 40px;
     background: rgba(255, 255, 255, 0.95);
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
     backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
 
     .title {
       text-align: center;
-      margin-bottom: 40px;
+      margin-bottom: 35px;
       color: #333;
-      font-size: 24px;
-      font-weight: 600;
+
+      .title-main {
+        display: block;
+        font-size: 24px;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 5px;
+      }
+
+      .title-sub {
+        display: block;
+        font-size: 14px;
+        color: #7f8c8d;
+        font-weight: 400;
+        letter-spacing: 0.5px;
+      }
+    }
+
+    .form-input {
+      height: 48px;
+      border-radius: 8px;
+      border: 2px solid #e1e8ed;
+      transition: all 0.3s ease;
+
+      :deep(.el-input__wrapper) {
+        box-shadow: none;
+        border: none;
+        background: transparent;
+        padding: 0 15px;
+      }
+
+      :deep(.el-input__inner) {
+        font-size: 15px;
+        color: #2c3e50;
+        font-weight: 500;
+      }
+
+      :deep(.el-input__prefix) {
+        color: #7f8c8d;
+        font-size: 16px;
+      }
+
+      &:hover {
+        border-color: #3498db;
+      }
+
+      &:focus-within {
+        border-color: #2980b9;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+      }
+    }
+
+    .code-input {
+      width: 60%;
     }
 
     .check-code-container {
@@ -212,22 +274,29 @@ onMounted(() => {
 
       .captcha-container {
         flex: 1;
-        height: 40px;
+        height: 48px;
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid #dcdfe6;
-        border-radius: 4px;
-        background: #f5f7fa;
+        border: 2px solid #e1e8ed;
+        border-radius: 8px;
+        background: #f8f9fa;
+        transition: all 0.3s ease;
+
+        &:hover {
+          border-color: #3498db;
+          background: #f0f8ff;
+        }
 
         .check-code-img {
-          height: 38px;
+          height: 44px;
           cursor: pointer;
-          border-radius: 4px;
-          transition: opacity 0.3s;
+          border-radius: 6px;
+          transition: all 0.3s ease;
 
           &:hover {
             opacity: 0.8;
+            transform: scale(1.02);
           }
         }
 
@@ -236,19 +305,60 @@ onMounted(() => {
           align-items: center;
           justify-content: center;
           height: 100%;
-          color: #909399;
+          color: #7f8c8d;
+          font-size: 18px;
         }
       }
     }
 
     .el-form-item {
-      margin-bottom: 24px;
+      margin-bottom: 25px;
+
+      :deep(.el-form-item__error) {
+        font-size: 12px;
+        color: #e74c3c;
+        margin-top: 5px;
+        line-height: 1.4;
+      }
     }
 
-    .el-button {
-      height: 44px;
+    .login-button {
+      height: 50px;
+      width: 100%;
+      border-radius: 8px;
       font-size: 16px;
-      font-weight: 500;
+      font-weight: 600;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      transition: all 0.3s ease;
+      margin-top: 10px;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+
+      .button-text {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+
+        .button-main {
+          font-size: 16px;
+          font-weight: 600;
+        }
+
+        .button-sub {
+          font-size: 12px;
+          font-weight: 400;
+          opacity: 0.8;
+        }
+      }
     }
   }
 }
@@ -263,8 +373,13 @@ onMounted(() => {
       padding: 30px 20px;
 
       .title {
-        font-size: 20px;
-        margin-bottom: 30px;
+        .title-main {
+          font-size: 20px;
+        }
+
+        .title-sub {
+          font-size: 12px;
+        }
       }
 
       .check-code-container {
