@@ -1,112 +1,74 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import router from '@/router'
 
-// 创建 axios 实例
-const service = axios.create({
-  baseURL: '/api', // 修改为相对路径，通过 vite 代理转发
-  timeout: 5000 // 请求超时时间
+// 创建axios实例
+const request = axios.create({
+  baseURL: '/api', // 恢复 baseURL
+  timeout: 10000
 })
 
-// request 拦截器
-service.interceptors.request.use(
+// 请求拦截器
+request.interceptors.request.use(
   config => {
-    // 从 sessionStorage 获取 token
+    // 添加token到请求头
     const token = sessionStorage.getItem('token')
     if (token) {
-      config.headers['Authorization'] = `${token}`
+      config.headers.Authorization = `Bearer ${token}`
     }
+    
+    // 添加其他通用请求头
+    config.headers['Content-Type'] = 'application/json'
+    
     return config
   },
   error => {
-    console.error('请求错误:', error)
+    console.error('请求拦截器错误:', error)
     return Promise.reject(error)
   }
 )
 
-// response 拦截器
-service.interceptors.response.use(
+// 响应拦截器
+request.interceptors.response.use(
   response => {
-    const res = response.data
-    if (res.code !== 1) {
-      ElMessage({
-        message: res.message || '请求失败',
-        type: 'error',
-        duration: 5 * 1000
-      })
-      return Promise.reject(new Error(res.message || '请求失败'))
-    }
-    return res
+    // 直接返回响应数据
+    return response.data
   },
   error => {
-    console.error('响应错误:', error)
+    console.error('响应拦截器错误:', error)
+    
     if (error.response) {
-      // 服务器返回了错误状态码
-      const status = error.response.status
-      const message = error.response.data?.message || '请求失败'
+      const { status, data } = error.response
       
       switch (status) {
-        case 400:
-          ElMessage({
-            message: '请求参数错误：' + message,
-            type: 'error',
-            duration: 5 * 1000
-          })
+        case 401:
+          ElMessage.error('登录已过期，请重新登录')
+          // 清除本地存储
+          sessionStorage.clear()
+          localStorage.clear()
+          // 跳转到登录页
+          router.push('/login')
           break
-        // case 401:
-        //   ElMessage({
-        //     message: '未授权，请重新登录',
-        //     type: 'error',
-        //     duration: 5 * 1000
-        //   })
-        //   // 清除 token 并跳转到登录页
-        //   sessionStorage.removeItem('token')
-        //   window.location.href = '/login'
-        //   break
         case 403:
-          ElMessage({
-            message: '拒绝访问',
-            type: 'error',
-            duration: 5 * 1000
-          })
+          ElMessage.error('没有权限访问')
           break
         case 404:
-          ElMessage({
-            message: '请求的资源不存在',
-            type: 'error',
-            duration: 5 * 1000
-          })
+          ElMessage.error('请求的资源不存在')
           break
         case 500:
-          ElMessage({
-            message: '服务器错误',
-            type: 'error',
-            duration: 5 * 1000
-          })
+          ElMessage.error('服务器内部错误')
           break
         default:
-          ElMessage({
-            message: message,
-            type: 'error',
-            duration: 5 * 1000
-          })
+          ElMessage.error(data?.message || '请求失败')
       }
-    } else if (error.request) {
-      // 请求已经发出，但没有收到响应
-      ElMessage({
-        message: '网络错误，请检查网络连接',
-        type: 'error',
-        duration: 5 * 1000
-      })
+    } else if (error.code === 'ECONNABORTED') {
+      ElMessage.error('请求超时，请检查网络连接')
     } else {
-      // 请求配置出错
-      ElMessage({
-        message: '请求配置错误：' + error.message,
-        type: 'error',
-        duration: 5 * 1000
-      })
+      ElMessage.error('网络错误，请检查网络连接')
     }
+    
     return Promise.reject(error)
   }
 )
 
-export default service 
+export default request 

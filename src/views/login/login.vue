@@ -2,47 +2,61 @@
   <div class="login-container">
     <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" class="login-form">
       <h3 class="title">数字旅游后台管理系统</h3>
-      <el-form-item prop="account">
+      
+      <el-form-item prop="username">
         <el-input
-          v-model="loginForm.account"
-          placeholder="账号"
+          v-model="loginForm.username"
+          placeholder="用户名"
           type="text"
           auto-complete="off"
+          prefix-icon="User"
         />
       </el-form-item>
+      
       <el-form-item prop="password">
         <el-input
           v-model="loginForm.password"
           placeholder="密码"
           type="password"
           auto-complete="off"
-          @keyup.enter.native="handleLogin"
+          prefix-icon="Lock"
+          show-password
+          @keyup.enter="handleLogin"
         />
       </el-form-item>
-      <!--
-      <el-form-item prop="checkCode">
+      
+      <el-form-item prop="code">
         <div class="check-code-container">
           <el-input
-            v-model="loginForm.checkCode"
+            v-model="loginForm.code"
             placeholder="验证码"
             type="text"
             auto-complete="off"
+            prefix-icon="Key"
             style="width: 60%"
+            @keyup.enter="handleLogin"
           />
-          <img
-            :src="checkCodeImg"
-            class="check-code-img"
-            @click="refreshCheckCode"
-            alt="验证码"
-          />
+          <div class="captcha-container">
+            <img
+              v-if="captchaImg"
+              :src="captchaImg"
+              class="check-code-img"
+              @click="refreshCaptcha"
+              alt="验证码"
+              title="点击刷新验证码"
+            />
+            <div v-else class="captcha-loading">
+              <el-icon class="is-loading"><Loading /></el-icon>
+            </div>
+          </div>
         </div>
       </el-form-item>
-      -->
+      
       <el-button
         :loading="loading"
         type="primary"
         style="width: 100%"
-        @click.native.prevent="handleLogin"
+        @click="handleLogin"
       >
         登录
       </el-button>
@@ -54,7 +68,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getCheckCode, login } from '@/api/admin'
+import { User, Lock, Key, Loading } from '@element-plus/icons-vue'
+import { getCaptcha, login } from '@/api/auth'
 
 // 路由和依赖
 const router = useRouter()
@@ -64,44 +79,49 @@ const loginFormRef = ref(null)
 
 // 响应式数据
 const loading = ref(false)
-// const checkCodeImg = ref('')
+const captchaImg = ref('')
+const captchaUuid = ref('')
 
 const loginForm = reactive({
-  account: '',
+  username: '',
   password: '',
-  // checkCode: '',
-  // checkCodeKey: ''
+  code: '',
+  uuid: ''
 })
 
 const loginRules = {
-  account: [{ required: true, message: '请输入账号', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-  // checkCode: [{ required: true, message: '请输入验证码', trigger: 'blur' }]
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 2, max: 20, message: '用户名长度在 2 到 20 个字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度不能少于6个字符', trigger: 'blur' }
+  ],
+  code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    { min: 1, message: '验证码不能为空', trigger: 'blur' }
+  ]
 }
 
-// 获取 Cookie
-function getCookie(name) {
-  const value = `; ${document.cookie}`
-  const parts = value.split(`; ${name}=`)
-  if (parts.length === 2) return parts.pop().split(';').shift()
-  return null
-}
-
-/*
 // 刷新验证码
-async function refreshCheckCode() {
+const refreshCaptcha = async () => {
   try {
-    const res = await getCheckCode()
-    if (res.code === 1) {
-      checkCodeImg.value = res.data.checkCode
-      loginForm.checkCodeKey = res.data.checkCodeKey
+    const res = await getCaptcha()
+    console.log('验证码响应:', res) // 调试日志
+    
+    if (res.code === 1) { // 修改：后端返回 code: 1 表示成功
+      captchaImg.value = res.data.img
+      captchaUuid.value = res.data.uuid
+      loginForm.uuid = res.data.uuid
+    } else {
+      ElMessage.error(res.message || '获取验证码失败')
     }
   } catch (error) {
     console.error('获取验证码失败:', error)
     ElMessage.error('获取验证码失败')
   }
 }
-*/
 
 // 登录逻辑
 const handleLogin = async () => {
@@ -111,56 +131,53 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       
-      // 新增的硬编码登录逻辑
-      if (loginForm.account === 'admin' && loginForm.password === 'admin') {
-        ElMessage.success('登录成功');
-        sessionStorage.setItem('token', 'admin-token'); // 使用一个模拟token
-        router.push('/index');
-      } else {
-        ElMessage.error('账号或密码错误');
-      }
-      loading.value = false;
-
-      /* 原有登录逻辑
       try {
-        if (!loginForm.checkCodeKey) {
-          ElMessage.error('请先获取验证码')
-          refreshCheckCode()
-          return
-        }
-
-        const res = await login(loginForm)
-        if (res.code === 1) {
+        const res = await login({
+          username: loginForm.username,
+          password: loginForm.password,
+          code: loginForm.code,
+          uuid: loginForm.uuid
+        })
+        
+        console.log('登录响应:', res) // 调试日志
+        
+        if (res.code === 1) { // 修改：后端返回 code: 1 表示成功
           ElMessage.success('登录成功')
-
-          const token = getCookie('adminToken')
-          console.log('保存token:', token)
-
-          if (token) {
-            sessionStorage.setItem('token', token)
-
-            router.push('/index')
-          } else {
-            ElMessage.error('获取token失败')
-            refreshCheckCode()
-          }
+          
+          // 保存用户信息和token
+          const userInfo = res.data
+          sessionStorage.setItem('token', userInfo.token)
+          sessionStorage.setItem('userInfo', JSON.stringify({
+            id: userInfo.id,
+            username: userInfo.username,
+            nickname: userInfo.nickname,
+            avatar: userInfo.avatar,
+            phone: userInfo.phone,
+            role: userInfo.role
+          }))
+          
+          // 跳转到首页
+          router.push('/index')
         } else {
           ElMessage.error(res.message || '登录失败')
-          refreshCheckCode()
+          // 登录失败后刷新验证码
+          refreshCaptcha()
         }
       } catch (error) {
         console.error('登录失败:', error)
-        refreshCheckCode()
+        ElMessage.error('登录失败，请检查网络连接')
+        // 登录失败后刷新验证码
+        refreshCaptcha()
       } finally {
         loading.value = false
       }
-      */
     }
   })
 }
 
+// 页面加载时获取验证码
 onMounted(() => {
-  // refreshCheckCode()
+  refreshCaptcha()
 })
 </script>
 
@@ -170,30 +187,93 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: url('../../images/admin-cover.jpg') no-repeat center center;
-  background-size: cover;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 
   .login-form {
     width: 400px;
-    padding: 30px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 4px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    padding: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
 
     .title {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 40px;
       color: #333;
+      font-size: 24px;
+      font-weight: 600;
     }
 
     .check-code-container {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
 
-      .check-code-img {
+      .captcha-container {
+        flex: 1;
         height: 40px;
-        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #dcdfe6;
+        border-radius: 4px;
+        background: #f5f7fa;
+
+        .check-code-img {
+          height: 38px;
+          cursor: pointer;
+          border-radius: 4px;
+          transition: opacity 0.3s;
+
+          &:hover {
+            opacity: 0.8;
+          }
+        }
+
+        .captcha-loading {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          color: #909399;
+        }
+      }
+    }
+
+    .el-form-item {
+      margin-bottom: 24px;
+    }
+
+    .el-button {
+      height: 44px;
+      font-size: 16px;
+      font-weight: 500;
+    }
+  }
+}
+
+// 响应式设计
+@media (max-width: 480px) {
+  .login-container {
+    padding: 20px;
+
+    .login-form {
+      width: 100%;
+      padding: 30px 20px;
+
+      .title {
+        font-size: 20px;
+        margin-bottom: 30px;
+      }
+
+      .check-code-container {
+        flex-direction: column;
+        gap: 8px;
+
+        .captcha-container {
+          width: 100%;
+        }
       }
     }
   }
