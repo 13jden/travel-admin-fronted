@@ -17,8 +17,10 @@ request.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
     
-    // 添加其他通用请求头
-    config.headers['Content-Type'] = 'application/json'
+    // 只在非multipart请求时设置Content-Type
+    if (!config.headers['Content-Type'] && !(config.data instanceof FormData)) {
+      config.headers['Content-Type'] = 'application/json'
+    }
     
     return config
   },
